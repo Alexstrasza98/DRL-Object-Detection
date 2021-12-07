@@ -121,7 +121,9 @@ class Agent():
         """
         res = self.intersection_over_union(actual_state, ground_truth) - self.intersection_over_union(previous_state, ground_truth)
         if res <= 0:
+            #print('-1')
             return -1
+        #print('1')
         return 1
     
     def compute_trigger_reward(self, actual_state, ground_truth):
@@ -557,7 +559,7 @@ class Agent():
         
         # initialization
         original_image = image.clone()
-        self.actions_history = torch.zeros((9,9))
+        self.actions_history = torch.zeros((9,self.n_actions))
         state = self.compose_state(image)
         
         new_image = image
@@ -706,47 +708,46 @@ class Agent_3alpha(Agent):
     #           r_0.5, l_0.5, u_0.5, d_0.5, b_0.5, s_0.5, f_0.5, t_0.5] (24,)
 
     real_x_min, real_x_max, real_y_min, real_y_max = current_coord
-
+    #print(action)
 
     if (action-1)//8 == 0: alpha = self.alpha * 0.5
     elif (action-1)//8 == 1: alpha = self.alpha * 1.5
     elif (action-1)//8 == 2: alpha = self.alpha * 2.5
     else:
-      alpha=self.alpha
-
-    #print(action)
+      #print(action,'not in')
+      alpha=0
 
     alpha_h = alpha * (real_y_max - real_y_min)
     alpha_w = alpha * (real_x_max - real_x_min)
 
     if action%8 == 1: # Right 0.1 
-        real_x_min += alpha_w * 0.5
-        real_x_max += alpha_w * 0.5
+        real_x_min += alpha_w
+        real_x_max += alpha_w
     if action%8 == 2: # Left
-        real_x_min -= alpha_w * 0.5
-        real_x_max -= alpha_w * 0.5
+        real_x_min -= alpha_w 
+        real_x_max -= alpha_w
     if action%8 == 3: # Up 
-        real_y_min -= alpha_h * 0.5
-        real_y_max -= alpha_h * 0.5
+        real_y_min -= alpha_h
+        real_y_max -= alpha_h
     if action%8 == 4: # Down
-        real_y_min += alpha_h * 0.5
-        real_y_max += alpha_h * 0.5
+        real_y_min += alpha_h
+        real_y_max += alpha_h
     if action%8 == 5: # Bigger
-        real_y_min -= alpha_h * 0.5
-        real_y_max += alpha_h * 0.5
-        real_x_min -= alpha_w * 0.5
-        real_x_max += alpha_w * 0.5
+        real_y_min -= alpha_h
+        real_y_max += alpha_h
+        real_x_min -= alpha_w
+        real_x_max += alpha_w
     if action%8 == 6: # Smaller
-        real_y_min += alpha_h * 0.5
-        real_y_max -= alpha_h * 0.5
-        real_x_min += alpha_w * 0.5
-        real_x_max -= alpha_w * 0.5
+        real_y_min += alpha_h
+        real_y_max -= alpha_h
+        real_x_min += alpha_w
+        real_x_max -= alpha_w
     if action%8 == 7: # Fatter
-        real_y_min += alpha_h * 0.5
-        real_y_max -= alpha_h * 0.5
+        real_y_min += alpha_h
+        real_y_max -= alpha_h
     if (action%8 == 0) and (action != 0): # Taller
-        real_x_min += alpha_w * 0.5
-        real_x_max -= alpha_w * 0.5
+        real_x_min += alpha_w
+        real_x_max -= alpha_w 
             
     real_x_min = self.rewrap(real_x_min)
     real_x_max = self.rewrap(real_x_max)
@@ -755,6 +756,18 @@ class Agent_3alpha(Agent):
     
     return [real_x_min, real_x_max, real_y_min, real_y_max]
 
-#class Agent_PPO(Agent):
+'''
+class Agent_PPO(Agent):
+   def __init__(self, classe, nu=3.0, threshold=0.5, num_episodes=15, load=False, model_name='vgg16'):
+    super().__init__(classe=classe, nu=nu, threshold=threshold, num_episodes=num_episodes, load=load, model_name=model_name)
+    if not load:
+      self.policy_net = PPO()
+    else:
+      self.policy_net = self.load_network() 
+      
+    self.target_net = PPO()
+    self.target_net.load_state_dict(self.policy_net.state_dict())
+    self.target_net.eval()    
+'''
 
 #class Agent 

@@ -28,9 +28,9 @@ import glob
 from PIL import Image
 
 class Agent():
-    def __init__(self, classe, alpha=0.2, nu=3.0, threshold=0.5, num_episodes=15, load=False, model_name='vgg16'):
+    def __init__(self, classe, alpha=0.2, nu=3.0, threshold=0.5, num_episodes=15, load=False, model_name='vgg16', n_actions=9):
         # basic settings
-        self.n_actions = 9                       # total number of actions
+        self.n_actions = n_actions                       # total number of actions
         screen_height, screen_width = 224, 224   # size of resized images
         self.GAMMA = 0.900                       # decay weight
         self.EPS = 1                             # initial epsilon value, decayed every epoch
@@ -48,11 +48,11 @@ class Agent():
         self.feature_extractor.eval()            # a pre-trained CNN model as feature extractor
         
         if not load:
-            self.policy_net = DQN(screen_height, screen_width, self.n_actions)
+            self.policy_net = DQN(screen_height, screen_width, self.n_actions, history_length=9)
         else:
             self.policy_net = self.load_network() # policy net - DQN, inputs state vector, outputs q value for each action
         
-        self.target_net = DQN(screen_height, screen_width, self.n_actions)
+        self.target_net = DQN(screen_height, screen_width, self.n_actions,  history_length=9)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()                    # target net - same DQN as policy net, works as frozen net to compute loss
                                                   # initialize as the same as policy net, use eval to disable Dropout
@@ -157,7 +157,6 @@ class Agent():
         Return:
         new_coord     - the coordinate after taking the action, also four elements vector
         """
-        
         real_x_min, real_x_max, real_y_min, real_y_max = current_coord
 
         alpha_h = self.alpha * (real_y_max - real_y_min)
@@ -212,7 +211,7 @@ class Agent():
         """
         positive_actions = []
         negative_actions = []
-        for i in range(0, 9):
+        for i in range(0, self.n_actions):
             new_equivalent_coord = self.calculate_position_box(current_coord, i)
             if i!=0:
                 reward = self.compute_reward(new_equivalent_coord, current_coord, ground_truth)
@@ -324,7 +323,7 @@ class Agent():
         Return:
         actions_history - a tensor of (9x9), encoding action history information
         """
-        action_vector = torch.zeros(9)
+        action_vector = torch.zeros(self.n_actions)
         action_vector[action] = 1
         for i in range(0,8,1):
             self.actions_history[i][:] = self.actions_history[i+1][:]
@@ -440,7 +439,7 @@ class Agent():
                 ground_truth = ground_truth_boxes[0]
                 
                 # initialization setting
-                self.actions_history = torch.zeros((9,9))
+                self.actions_history = torch.zeros((9,self.n_actions))
                 new_image = image
                 state = self.compose_state(image)
                 
@@ -500,10 +499,11 @@ class Agent():
                     # Perform one step of the optimization (on the target network)
                     self.optimize_model(verbose)
                     
+            
             # update target net every TARGET_UPDATE episodes
             if i_episode % self.TARGET_UPDATE == 0:
                 self.target_net.load_state_dict(self.policy_net.state_dict())
-            
+
             # linearly decrease epsilon on first 5 episodes
             if i_episode < 5:
                 self.EPS -= 0.18
@@ -689,4 +689,72 @@ class Agent():
         return stats
 
     
+class Agent_3alpha(Agent):
+  def __init__(self, classe, alpha=0.2, nu=3.0, threshold=0.5, num_episodes=15, load=False, model_name='vgg16', n_actions=25):
+    super().__init__(classe=classe, alpha=alpha, nu=nu, threshold=threshold, num_episodes=num_episodes, load=load, model_name=model_name, n_actions=n_actions)
+
+
+  def save_network(self):
+      torch.save(self.policy_net, self.save_path + "_" + self.model_name + "_" +self.classe + '_3STEP')
+      print('Saved')
+
+  
+  def calculate_position_box(self, current_coord, action):
+    # action = [trigger,
+    #           r_0.1, l_0.1, u_0.1, d_0.1, b_0.1, s_0.1, f_0.1, t_0.1,
+    #           r_0.3, l_0.3, u_0.3, d_0.3, b_0.3, s_0.3, f_0.3, t_0.3,
+    #           r_0.5, l_0.5, u_0.5, d_0.5, b_0.5, s_0.5, f_0.5, t_0.5] (24,)
+
+    real_x_min, real_x_max, real_y_min, real_y_max = current_coord
+
+
+    if (action-1)//8 == 0: alpha = self.alpha * 0.5
+    elif (action-1)//8 == 1: alpha = self.alpha * 1.5
+    elif (action-1)//8 == 2: alpha = self.alpha * 2.5
+    else:
+      alpha=self.alpha
+
+    #print(action)
+
+    alpha_h = alpha * (real_y_max - real_y_min)
+    alpha_w = alpha * (real_x_max - real_x_min)
+
+    if action%8 == 1: # Right 0.1 
+        real_x_min += alpha_w * 0.5
+        real_x_max += alpha_w * 0.5
+    if action%8 == 2: # Left
+        real_x_min -= alpha_w * 0.5
+        real_x_max -= alpha_w * 0.5
+    if action%8 == 3: # Up 
+        real_y_min -= alpha_h * 0.5
+        real_y_max -= alpha_h * 0.5
+    if action%8 == 4: # Down
+        real_y_min += alpha_h * 0.5
+        real_y_max += alpha_h * 0.5
+    if action%8 == 5: # Bigger
+        real_y_min -= alpha_h * 0.5
+        real_y_max += alpha_h * 0.5
+        real_x_min -= alpha_w * 0.5
+        real_x_max += alpha_w * 0.5
+    if action%8 == 6: # Smaller
+        real_y_min += alpha_h * 0.5
+        real_y_max -= alpha_h * 0.5
+        real_x_min += alpha_w * 0.5
+        real_x_max -= alpha_w * 0.5
+    if action%8 == 7: # Fatter
+        real_y_min += alpha_h * 0.5
+        real_y_max -= alpha_h * 0.5
+    if (action%8 == 0) and (action != 0): # Taller
+        real_x_min += alpha_w * 0.5
+        real_x_max -= alpha_w * 0.5
             
+    real_x_min = self.rewrap(real_x_min)
+    real_x_max = self.rewrap(real_x_max)
+    real_y_min = self.rewrap(real_y_min)
+    real_y_max = self.rewrap(real_y_max)
+    
+    return [real_x_min, real_x_max, real_y_min, real_y_max]
+
+#class Agent_PPO(Agent):
+
+#class Agent 

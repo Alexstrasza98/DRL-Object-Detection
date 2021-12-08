@@ -1,0 +1,20 @@
+更新：
+1. 在utils.agent里添加了新agent，25个action：
+	1个trigger，
+	8个原action x alpha=0.1, 
+	8个原action x alpha=0.3, 
+	8个原action x alpha=0.5,
+
+2.修改DQN网络、Agent类，适配新agent
+3.Toy test包装train、test函数
+4.PPO agent搭建中
+
+实验结果：
+1.继续使用原agent的超参 应用于agent_3step时，ap下降。可视化后发现问题在于从未执行过trigger。推测alpha=0.1时，agent更容易在每一步找到保守的+1reward策略，从而选择更长的路径采集更多的reward。
+2.调整最小alpha为0.2后，结果依旧。推测nu、threshold等超参需要调整。
+3.将nu增大至10后ap回升，但仍未高过原agent。可视化发现由于nu的增加，agent轻易选定较大范围触发trigger，导致iou不高。
+4.有待进一步调参
+
+
+结论：
+不同agent适合不同的reward function。action和reward engineering两部分同时做会高效一些。
